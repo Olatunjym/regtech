@@ -1,0 +1,14 @@
+{
+    "name": "regtech-app",
+    "version": "1.0.0",
+    "description": "A sample regtech application",
+    "main": "app.js",
+    "scripts": {
+      "start": "node app.js"
+    },
+    "dependencies": {
+      "express": "^4.17.1"
+    },
+    "author": "Your Name",
+    "license": "ISC"
+  }

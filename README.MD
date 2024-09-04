@@ -18,3 +18,19 @@ You will also need to:
    ```bash
    git clone <repository-url>
    cd terraform
+
+
+## CI/CD Pipeline
+
+This repository uses GitHub Actions for continuous integration and deployment to a GKE cluster on GCP.
+
+### Steps:
+1. The pipeline is triggered on any push to the `main` branch.
+2. The application is deployed to the GKE cluster using `kubectl`.
+3. Automated tests are run after deployment.
+4. If deployment fails, the pipeline rolls back to the previous stable version.
+
+### Secrets:
+- `GCP_PROJECT_ID`: Google Cloud project ID.
+- `GCP_SERVICE_ACCOUNT_KEY`: Google Cloud service account key (JSON format).
+- `GCP_ZONE`: GCP zone where the GKE cluster is deployed.
