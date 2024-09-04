@@ -1,62 +1,20 @@
-name: CI/CD Pipeline
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3  # Latest version
-
-    - name: Set up Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
-      with:
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
-        service_account_key: ${{ secrets.GCP_SA_KEY }}
-        export_default_credentials: true
-
-    - name: Install Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 1.5.0  # Set your preferred Terraform version
-
-    # Set the service account key as an environment variable instead of passing it via -var
-    - name: Initialize Terraform
-      working-directory: ./terraform
-      env:
-        TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}  # Passing the key via environment variable
-      run: terraform init
-
-    - name: Apply Terraform to create GKE cluster
-      working-directory: ./terraform
-      env:
-        TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}  # Passing the key via environment variable
-      run: terraform apply -auto-approve -var "project_id=${{ secrets.GCP_PROJECT_ID }}" -var "region=${{ secrets.GCP_REGION }}"
-
-    - name: Install kubectl
-      uses: azure/setup-kubectl@v1
-      with:
-        version: 'latest'
-
-    - name: Configure GKE credentials
-      run: |
-        gcloud container clusters get-credentials youverify --zone ${{ secrets.GCP_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
-
-    - name: Deploy to GKE
-      run: |
-        kubectl apply -f k8s/deployment.yaml
-
-    - name: Run tests
-      run: |
-        kubectl get pods
-        # Add any specific test steps here (integration tests, smoke tests, etc.)
-
-    - name: Rollback on failure
-      if: failure()
-      run: |
-        kubectl rollout undo deployment regtech-app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: regtech-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: regtech-app
+  template:
+    metadata:
+      labels:
+        app: regtech-app
+    spec:
+      containers:
+      - name: app-container
+        # Use your DockerHub image
+        image: olatunjym/regtech-app:latest
+        ports:
+        - containerPort: 8080
