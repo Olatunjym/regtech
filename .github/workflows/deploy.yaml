@@ -11,7 +11,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3  # Latest version
+      uses: actions/checkout@v3
 
     # Authenticate to Google Cloud using the service account key
     - name: Authenticate to Google Cloud
@@ -25,32 +25,32 @@ jobs:
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-    # Initialize Terraform with environment variables
+    # Install gke-gcloud-auth-plugin
+    - name: Install gke-gcloud-auth-plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin
+        export USE_GKE_GCLOUD_AUTH_PLUGIN=True
+
+    # Install Terraform
     - name: Install Terraform
       uses: hashicorp/setup-terraform@v2
       with:
-        terraform_version: 1.5.0  # Set your preferred Terraform version
+        terraform_version: 1.5.0
 
     - name: Initialize Terraform
       working-directory: ./terraform
       env:
-        TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}  # Pass the key as an environment variable
+        TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
       run: terraform init
 
-    # Plan Terraform changes (this will show what changes will be applied)
-    - name: Plan Terraform Changes
-      working-directory: ./terraform
-      env:
-        TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
-      run: terraform plan -var "project_id=${{ secrets.GCP_PROJECT_ID }}" -var "region=${{ secrets.GCP_REGION }}"
-
-    # Apply Terraform if necessary (only apply changes if the plan detects changes)
+    # Apply Terraform to create GKE cluster
     - name: Apply Terraform to create GKE cluster
       working-directory: ./terraform
       env:
         TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
       run: terraform apply -auto-approve -var "project_id=${{ secrets.GCP_PROJECT_ID }}" -var "region=${{ secrets.GCP_REGION }}"
 
+    # Install kubectl
     - name: Install kubectl
       uses: azure/setup-kubectl@v1
       with:
@@ -61,15 +61,18 @@ jobs:
       run: |
         gcloud container clusters get-credentials youverify --zone ${{ secrets.GCP_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
 
+    # Deploy to GKE
     - name: Deploy to GKE
       run: |
         kubectl apply -f k8s/deployment.yaml
 
+    # Run tests
     - name: Run tests
       run: |
         kubectl get pods
         # Add any specific test steps here (integration tests, smoke tests, etc.)
 
+    # Rollback on failure
     - name: Rollback on failure
       if: failure()
       run: |
