@@ -1,5 +1,5 @@
 provider "google" {
-  credentials = file("C:/Users/USER/Downloads/toyeglobal-8aaf3bdc5db5.json")
+  credentials = var.gcp_sa_key  # Use the variable for the service account key
   project     = var.project_id
   region      = var.region
 }
