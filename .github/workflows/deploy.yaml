@@ -13,30 +13,42 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3  # Latest version
 
+    # Authenticate to Google Cloud using the service account key
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v0
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    # Set up the gcloud SDK
     - name: Set up Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
-        service_account_key: ${{ secrets.GCP_SA_KEY }}
-        export_default_credentials: true
 
+    # Initialize Terraform with environment variables
     - name: Install Terraform
       uses: hashicorp/setup-terraform@v2
       with:
         terraform_version: 1.5.0  # Set your preferred Terraform version
 
-    # Initialize Terraform with environment variables
     - name: Initialize Terraform
       working-directory: ./terraform
       env:
         TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}  # Pass the key as an environment variable
       run: terraform init
 
-    # Apply Terraform with the environment variable passed for the service account key
+    # Plan Terraform changes (this will show what changes will be applied)
+    - name: Plan Terraform Changes
+      working-directory: ./terraform
+      env:
+        TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
+      run: terraform plan -var "project_id=${{ secrets.GCP_PROJECT_ID }}" -var "region=${{ secrets.GCP_REGION }}"
+
+    # Apply Terraform if necessary (only apply changes if the plan detects changes)
     - name: Apply Terraform to create GKE cluster
       working-directory: ./terraform
       env:
-        TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}  # Pass the key as an environment variable
+        TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
       run: terraform apply -auto-approve -var "project_id=${{ secrets.GCP_PROJECT_ID }}" -var "region=${{ secrets.GCP_REGION }}"
 
     - name: Install kubectl
@@ -44,6 +56,7 @@ jobs:
       with:
         version: 'latest'
 
+    # Authenticate gcloud to configure GKE credentials
     - name: Configure GKE credentials
       run: |
         gcloud container clusters get-credentials youverify --zone ${{ secrets.GCP_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
