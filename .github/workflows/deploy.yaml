@@ -43,8 +43,16 @@ jobs:
         TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
       run: terraform init
 
-    # Apply Terraform to create GKE cluster
-    - name: Apply Terraform to create GKE cluster
+    # Run Terraform Plan to Check for Changes
+    - name: Terraform Plan
+      working-directory: ./terraform
+      env:
+        TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
+      run: terraform plan -var "project_id=${{ secrets.GCP_PROJECT_ID }}" -var "region=${{ secrets.GCP_REGION }}"
+
+    # Apply Terraform Only If Changes Are Needed
+    - name: Apply Terraform Changes (if any)
+      if: success()  # Only run if the plan succeeds and there are changes
       working-directory: ./terraform
       env:
         TF_VAR_gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
@@ -61,16 +69,25 @@ jobs:
       run: |
         gcloud container clusters get-credentials youverify --zone ${{ secrets.GCP_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
 
-    # Deploy to GKE
-    - name: Deploy to GKE
+    # Deploy the Kubernetes Service
+    - name: Deploy Service to GKE
+      run: |
+        kubectl apply -f k8s/service.yaml
+
+    # Deploy the application
+    - name: Deploy Application to GKE
       run: |
         kubectl apply -f k8s/deployment.yaml
+
+    # Deploy the Ingress resource for TLS
+    - name: Deploy Ingress for TLS
+      run: |
+        kubectl apply -f k8s/ingress.yaml
 
     # Run tests
     - name: Run tests
       run: |
         kubectl get pods
-        # Add any specific test steps here (integration tests, smoke tests, etc.)
 
     # Rollback on failure
     - name: Rollback on failure
