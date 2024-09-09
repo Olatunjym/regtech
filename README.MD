@@ -29,7 +29,7 @@ Deployment is fully automated through the CI/CD pipeline triggered by a push to 
    Before proceeding with any Kubernetes commands, make sure to connect to your GKE cluster:
    
    ```bash
-   gcloud container clusters get-credentials youverify --region <region> --project <proj_ID>
+   gcloud container clusters get-credentials youverify --region <REGION> --project <Proj_ID>
    ```
 
 3. **GitHub Secrets Used**:
@@ -56,13 +56,31 @@ The CI/CD pipeline is triggered on each push to the `main` branch and automates 
 
 ## 3. Security and Compliance
 
-We implement security best practices to ensure the infrastructure is compliant with GDPR and PCI-DSS standards.
+To ensure the infrastructure is secure and compliant with industry standards like GDPR and PCI-DSS, the following measures are in place:
 
-### Key Security Measures:
-- **IAM Policies**: Identity and Access Management (IAM) policies enforce least-privilege access.
-- **Encryption in Transit**: Data is encrypted using TLS for secure communication.
-- **Encryption at Rest**: Google Cloud's Customer-Managed Encryption Keys (CMEK) are used to control encryption keys.
-- **Audit Logs**: Google Cloud's audit logs track all access and actions on the infrastructure.
+### 3.1 Implementation of GDPR/PCI-DSS Compliance
+
+1. **Data Encryption**:
+   - Data is encrypted both in transit (via TLS) and at rest (using GCP’s Customer-Managed Encryption Keys).
+
+2. **IAM Policies**:
+   - Identity and Access Management (IAM) roles enforce least-privilege access to the resources, ensuring secure and compliant access control. For example, the service account managing the cluster needs proper role bindings:
+   
+   ```bash
+   ACCOUNT=$(gcloud info --format='value(config.account)')
+   kubectl create clusterrolebinding owner-cluster-admin-binding --clusterrole cluster-admin --user $ACCOUNT
+   ```
+
+   This command ensures the user has cluster-admin privileges to manage the GKE cluster securely.
+
+3. **Logging and Auditing**:
+   - Audit logs track actions taken by users on critical infrastructure resources, ensuring traceability. These logs are securely stored in **Google Cloud Logging**.
+
+4. **Monitoring Compliance**:
+   - **Prometheus and Alertmanager** are set up to monitor security breaches or GDPR/PCI-DSS compliance violations. Alerts are sent via **Alertmanager** to notify the team of any issues.
+
+5. **Data Retention Policies**:
+   - **Retention of Logs and Data**: Logs and data are retained according to compliance policies. Data that is no longer required is deleted in accordance with GDPR's "right to be forgotten."
 
 ---
 
@@ -71,6 +89,7 @@ We implement security best practices to ensure the infrastructure is compliant w
 The infrastructure is monitored using **Prometheus** and **Grafana**, with logs handled by **Google Cloud Logging**.
 
 ### Prometheus and Grafana Setup:
+
 1. **Install NGINX Ingress Controller**:
    Before deploying the Ingress, install the NGINX Ingress controller on your GKE cluster:
    
@@ -78,34 +97,48 @@ The infrastructure is monitored using **Prometheus** and **Grafana**, with logs 
    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
    ```
 
-2. **Apply Prometheus and Grafana Manifests**:
+2. **Create Monitoring Namespace**:
+   You need to create the `monitoring` namespace to install Prometheus and Grafana.
+   
+   ```bash
+   kubectl create namespace monitoring
+   ```
+
+3. **Install Prometheus Operator**:
+   Install the Prometheus operator to manage the Prometheus setup on your cluster:
+
+   ```bash
+   helm install prometheus-operator prometheus-community/kube-prometheus-stack --namespace monitoring
+   ```
+
+4. **Apply Prometheus and Grafana Manifests**:
    Use the following command to apply the necessary manifests for Prometheus and Grafana:
    
    ```bash
    kubectl apply -f .
    ```
 
-3. **Install kube-state-metrics**:
+5. **Install kube-state-metrics**:
    Install `kube-state-metrics` to monitor Kubernetes resources:
 
    ```bash
    helm install kube-state-metrics prometheus-community/kube-state-metrics --namespace kube-system
    ```
 
-4. **Install Node Exporter**:
+6. **Install Node Exporter**:
    Install the Node Exporter to collect node-level metrics:
 
    ```bash
    helm install node-exporter prometheus-community/prometheus-node-exporter --namespace monitoring
    ```
 
-5. **Verify Prometheus Installation**:
+7. **Verify Prometheus Installation**:
    - Ensure Prometheus and related components are running:
      ```bash
      kubectl get pods -n monitoring
      ```
 
-6. **Access Grafana**:
+8. **Access Grafana**:
    - Grafana will be accessible via the load balancer service. Check the external IP:
      ```bash
      kubectl get svc -n monitoring
@@ -114,11 +147,11 @@ The infrastructure is monitored using **Prometheus** and **Grafana**, with logs 
      - **Username**: `admin`
      - **Password**: `admin` (You will be prompted to change it after the first login).
 
-7. **Add Prometheus as Data Source**:
+9. **Add Prometheus as Data Source**:
    - In the Grafana UI, go to **Configuration** > **Data Sources** > **Add Data Source** > **Prometheus**.
    - Set the URL to `http://prometheus-service:8080`.
 
-8. **Import Dashboards**:
+10. **Import Dashboards**:
    - Import pre-built Grafana dashboards (e.g., **ID: 315** for Kubernetes Cluster Monitoring).
 
 ### Logging:
@@ -149,10 +182,8 @@ Once the Ingress and TLS secret are set up, you will need to configure DNS to po
    After the Ingress is successfully created and the NGINX Ingress controller is running, retrieve the external IP assigned to the Ingress:
    
    ```bash
-   kubectl get ingress <ingress name> -o wide
+   kubectl get ingress 
    ```
-   
-   Look for the `ADDRESS` field in the output, which will contain the external IP.
 
 2. **Update DNS A Record**:
    In your DNS provider (e.g., Google Domains, GoDaddy, Cloudflare), create an A record pointing your domain (e.g., `regtech.testclik.net`) to the external IP address retrieved from the Ingress.
@@ -168,46 +199,33 @@ Once the Ingress and TLS secret are set up, you will need to configure DNS to po
    kubectl create secret tls tls-secret --cert=path/to/tls.crt --key=path/to/tls.key --namespace default
    ```
 
-4. **Access Your Application**:
-   After DNS propagation is complete, your application should be accessible at `https://host.example.com` with proper TLS encryption.
+4. **Ingress Resource with TLS**:
+   Your Ingress resource should reference the TLS secret as follows:
 
----
-
-## 6. TLS Secret Setup
-
-To enforce HTTPS for your application, you need to set up a **TLS secret**.
-
-### Steps to Create the TLS Secret:
-1. If you have the TLS certificate and key files, run the following command to create the secret:
-   ```bash
-   kubectl create secret tls tls-secret --cert=path/to/tls.crt --key=path/to/tls.key
-   ```
-
-2. Reference this secret in your Ingress definition:
    ```yaml
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: regtech-ingress
+     annotations:
+       kubernetes.io/ingress.class: "nginx"
+       nginx.ingress.kubernetes.io/ssl-redirect: "true"
    spec:
      tls:
      - hosts:
-       - <your-domain>
+         - regtech.testclik.net
        secretName: tls-secret
+     rules:
+     - host: regtech.testclik.net
+       http:
+         paths:
+         - path: /
+           pathType: Prefix
+           backend:
+             service:
+               name: regtech-app
+               port:
+                 number: 80
    ```
 
-This will ensure that all traffic to your domain is encrypted with TLS.
-
 ---
-
-## 7. Alerts and Monitoring Rules
-
-Prometheus Alertmanager is configured to trigger alerts based on system metrics. For example, an alert for high CPU usage is defined as follows:
-
-```yaml
-groups:
-  - name: kubernetes-alerts
-    rules:
-    - alert: HighCPUUsage
-      expr: 100 * (1 - avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 90
-      for: 5m
-      labels:
-        severity: warning
-```
-
